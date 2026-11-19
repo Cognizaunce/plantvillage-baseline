@@ -37,6 +37,41 @@ from the raw training partition. It preserves the supplied test partition and
 writes a split manifest. Use a new output directory for another preparation run.
 Check duplicates and subject/source leakage for your actual dataset.
 
+## Tomato leaf data (PlantVillage and FieldPlant)
+
+`download_data.py` fetches the raw data into `data/raw` (ignored by Git).
+PlantVillage needs `git`. FieldPlant comes from Roboflow
+(https://universe.roboflow.com/plant-disease-detection/fieldplant, CC BY 4.0) and
+needs a free API key plus `pip install roboflow`. Without a key the script prints
+how to download the COCO export by hand into `data/raw/FieldPlant`.
+
+```bash
+python download_data.py --dataset all            # add --tomato_only to skip other PlantVillage crops
+export ROBOFLOW_API_KEY=...                      # PowerShell: $env:ROBOFLOW_API_KEY="..."
+python download_data.py --dataset fieldplant
+
+python build_tomato_dataset.py --source plantvillage --seed 4110   # -> data/tomato_plantvillage
+python build_tomato_dataset.py --source fieldplant --seed 4110     # -> data/tomato_fieldplant
+```
+
+`build_tomato_dataset.py` keeps only tomato classes and writes a stratified
+70/15/15 train/val/test split (change with `--val_fraction` / `--test_fraction`)
+in the `{split}_signs/<label>_<id>.jpg` format the loader already reads, so
+`train.py`, `evaluate.py` and `predict.py` need no changes. Set `num_classes`
+in `params.json` to the number the script prints (10 for PlantVillage) and
+`image_size` as needed (images are saved at 224x224 by default).
+
+- PlantVillage: exact duplicate files are removed before splitting.
+- FieldPlant: each tomato leaf box is cropped to its own image, and splits are
+  made per source photo so leaves from one photo never land in two splits.
+  FieldPlant's own class names are kept (they differ from PlantVillage's).
+- `ood/<crop>/` holds up to `--ood_per_class` non-tomato leaves per class
+  (apple, corn, cassava, ...) for OOD evaluation only. Put non-leaf photos in
+  `ood/non_leaf/` yourself.
+- `classes.json` maps label indices to class names. `split_manifest.json`
+  records the seed, settings, every source file per split and a SHA-256 of
+  the split, so the same seed and raw data give the same split.
+
 ## Run experiments
 
 Edit `experiments/base_model/params.json` before training. Copy its configuration
