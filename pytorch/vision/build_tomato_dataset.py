@@ -12,6 +12,11 @@ FieldPlant: Roboflow COCO export with leaf bounding boxes. Each tomato box is cr
 leaf image. Splits are made per source photo, so leaves from one photo never appear in two
 splits. Roboflow augmented copies of a photo are collapsed to one.
 
+Labels: both sources use the 10 PlantVillage tomato classes from tomato_label_map.json,
+so a label index means the same disease in both datasets. FieldPlant classes are renamed
+to their PlantVillage match; FieldPlant tomato classes mapped to null (no PlantVillage
+match, e.g. Brown_Spots, bacterial_wilt) are left out entirely.
+
 The split is stratified by class with a fixed seed. Reruns require a fresh output directory.
 """
 import argparse
@@ -34,6 +39,39 @@ def crop_name(class_name):
 
 def is_tomato(class_name):
     return crop_name(class_name) == 'tomato'
+
+
+def norm(name):
+    return name.strip().lower().replace(' ', '_')
+
+
+def apply_label_map(source, tomato, label_map):
+    """Return (kept items with PlantVillage class names, class list, dropped counts)."""
+    classes = label_map['plantvillage_classes']
+    if source == 'plantvillage':
+        found = sorted({i['class_name'] for i in tomato})
+        if found != sorted(classes):
+            raise ValueError(f'PlantVillage tomato classes {found} do not match '
+                             f'tomato_label_map.json {classes}')
+        return tomato, classes, {}
+    mapping = {norm(k): v for k, v in label_map['fieldplant_to_plantvillage'].items()}
+    unknown = sorted({i['class_name'] for i in tomato if norm(i['class_name']) not in mapping})
+    if unknown:
+        raise ValueError(f'FieldPlant classes {unknown} are missing from tomato_label_map.json; '
+                         'map each to a PlantVillage class or null.')
+    bad = sorted({v for v in mapping.values() if v is not None and v not in classes})
+    if bad:
+        raise ValueError(f'Mapped classes {bad} are not in plantvillage_classes.')
+    kept, dropped = [], Counter()
+    for item in tomato:
+        target = mapping[norm(item['class_name'])]
+        if target is None:
+            dropped[item['class_name']] += 1
+        else:
+            kept.append(dict(item, class_name=target, original_class=item['class_name']))
+    if dropped:
+        print(f'Left out FieldPlant classes with no PlantVillage match: {dict(dropped)}')
+    return kept, classes, dict(dropped)
 
 
 def file_digest(path):
@@ -159,6 +197,8 @@ def load_image(item, image_size, margin):
 def record(item, raw_dir, name):
     entry = dict(file=name, source=item['src'].relative_to(raw_dir).as_posix(),
                  class_name=item['class_name'])
+    if 'original_class' in item:
+        entry['original_class'] = item['original_class']
     if item['box'] is not None:
         entry['box_xywh'] = [round(v, 1) for v in item['box']]
     return entry
@@ -180,6 +220,7 @@ def main():
                         help='Non-tomato images kept per class for OOD; 0 = none, -1 = all.')
     parser.add_argument('--min_box', type=float, default=32, help='FieldPlant: min box side (px).')
     parser.add_argument('--box_margin', type=float, default=0.1, help='FieldPlant: crop padding.')
+    parser.add_argument('--label_map', default=str(Path(__file__).with_name('tomato_label_map.json')))
     args = parser.parse_args()
     if not (0 < args.val_fraction < 1 and 0 < args.test_fraction < 1
             and args.val_fraction+args.test_fraction < 1) or args.image_size < 16:
@@ -199,7 +240,10 @@ def main():
     others = [i for i in items if not is_tomato(i['class_name'])]
     if not tomato:
         raise ValueError('No tomato classes found.')
-    class_names = sorted({i['class_name'] for i in tomato})
+    label_map = json.loads(Path(args.label_map).read_text(encoding='utf-8'))
+    tomato, class_names, dropped = apply_label_map(args.source, tomato, label_map)
+    if not tomato:
+        raise ValueError('No tomato leaves left after applying the label map.')
     label_of = {name: index for index, name in enumerate(class_names)}
 
     rng = random.Random(args.seed)
@@ -242,16 +286,18 @@ def main():
     manifest = dict(source=args.source, raw_dir=raw_dir.as_posix(), seed=args.seed,
                     image_size=args.image_size, val_fraction=args.val_fraction,
                     test_fraction=args.test_fraction, ood_per_class=args.ood_per_class,
-                    min_box=args.min_box, box_margin=args.box_margin, files=records,
+                    min_box=args.min_box, box_margin=args.box_margin, label_map=label_map,
+                    dropped_classes=dropped, files=records,
                     split_sha256=hashlib.sha256(payload).hexdigest())
     (destination/'split_manifest.json').write_text(json.dumps(manifest, indent=2)+'\n',
                                                    encoding='utf-8')
 
-    print(f'{len(class_names)} tomato classes -> set "num_classes": {len(class_names)} in params.json')
+    print(f'{len(class_names)} PlantVillage tomato classes -> set "num_classes": '
+          f'{len(class_names)} in params.json')
     for split in SPLITS:
         counts = Counter(r['class_name'] for r in records[split])
         print(f'  {split:5s} {len(records[split]):6d}  ' +
-              ', '.join(f'{label_of[n]}:{counts[n]}' for n in class_names))
+              ', '.join(f'{label_of[n]}:{counts[n]}' for n in class_names if counts[n]))
     ood_counts = Counter(Path(r['file']).parent.name for r in records['ood'])
     print(f'  ood   {len(records["ood"]):6d}  {dict(sorted(ood_counts.items()))}')
     print(f'Wrote {destination} (classes.json, split_manifest.json)')

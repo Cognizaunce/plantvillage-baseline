@@ -64,7 +64,11 @@ in `params.json` to the number the script prints (10 for PlantVillage) and
 - PlantVillage: exact duplicate files are removed before splitting.
 - FieldPlant: each tomato leaf box is cropped to its own image, and splits are
   made per source photo so leaves from one photo never land in two splits.
-  FieldPlant's own class names are kept (they differ from PlantVillage's).
+  FieldPlant classes are renamed to their PlantVillage match using
+  `tomato_label_map.json` (healthy, Mosaic, Leaf_Curling -> Yellow Leaf Curl
+  Virus, Mildiou -> Late blight). Brown_Spots and bacterial_wilt have no
+  match and are left out, so those diseases come only from PlantVillage.
+  Both datasets share the same 10 label indices.
 - `ood/<crop>/` holds up to `--ood_per_class` non-tomato leaves per class
   (apple, corn, cassava, ...) for OOD evaluation only. Put non-leaf photos in
   `ood/non_leaf/` yourself.
