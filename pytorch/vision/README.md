@@ -107,3 +107,20 @@ python evaluate.py --data_dir data/toy --model_dir experiments/base_model --spli
 Set `num_classes`, preprocessing and augmentation appropriately. The example
 selects checkpoints by validation accuracy. Change that criterion for tasks such
 as regression or detection. The CNN supports partial batches, including one image.
+
+## PlantVillage tomato baseline
+
+`params.json` can set `"arch"` to `scratch` (the original small CNN),
+`mobilenet_v3_large` or `efficientnet_b0`. The last two start from ImageNet
+weights (`"pretrained": true`, downloaded on the first run) and need
+`"imagenet_normalize": true`. `"select_metric": "macro_f1"` keeps the epoch with
+the best validation macro-F1, since the tomato classes are unbalanced.
+
+```
+python train.py --data_dir data/tomato_plantvillage --model_dir experiments/plantvillage_mobilenetv3
+python evaluate.py --data_dir data/tomato_plantvillage --model_dir experiments/plantvillage_mobilenetv3 --split val
+```
+
+`evaluate.py` prints accuracy, macro-F1 and per-class F1/recall, and saves the
+confusion matrix in `metrics_<split>_<restore_file>.json`. Use `--split test`
+only for the final numbers.

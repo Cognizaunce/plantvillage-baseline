@@ -1,4 +1,4 @@
-"""Train on train; select the best checkpoint on validation accuracy only."""
+"""Train on train; select the best checkpoint on validation (params.select_metric, default accuracy)."""
 import argparse
 import logging
 from pathlib import Path
@@ -26,14 +26,15 @@ def main():
     utils.prepare_run(args.model_dir, params, args.data_dir, args.overwrite)
     model = Net(params).to(params.device)
     optimizer = utils.make_optimizer(model, params)
-    best_accuracy = float('-inf')
+    select_metric = getattr(params, 'select_metric', 'accuracy')
+    best_accuracy = float('-inf')  # best value of select_metric
     for epoch in range(1, params.num_epochs + 1):
         train_metrics = utils.run_epoch(model, loss_fn, train_batches(), params.device, optimizer)
         val_metrics = utils.run_epoch(model, loss_fn, val_batches(), params.device)
         logging.info('Epoch %d/%d train=%s val=%s', epoch, params.num_epochs, train_metrics, val_metrics)
-        is_best = val_metrics['accuracy'] > best_accuracy
+        is_best = val_metrics[select_metric] > best_accuracy
         if is_best:
-            best_accuracy = val_metrics['accuracy']
+            best_accuracy = val_metrics[select_metric]
             utils.save_dict_to_json(dict(val_metrics, epoch=epoch),
                                     Path(args.model_dir) / 'metrics_val_best_weights.json')
         utils.save_dict_to_json(dict(val_metrics, epoch=epoch),
@@ -44,8 +45,9 @@ def main():
         utils.append_history(args.model_dir, {'epoch': epoch,
             'train_loss': train_metrics['loss'], 'train_accuracy': train_metrics['accuracy'],
             'train_count': train_metrics['count'], 'val_loss': val_metrics['loss'],
-            'val_accuracy': val_metrics['accuracy'], 'val_count': val_metrics['count']})
-    logging.info('Finished. Best validation accuracy: %.4f', best_accuracy)
+            'val_accuracy': val_metrics['accuracy'], 'val_macro_f1': val_metrics['macro_f1'],
+            'val_count': val_metrics['count']})
+    logging.info('Finished. Best validation %s: %.4f', select_metric, best_accuracy)
 
 
 if __name__ == '__main__':

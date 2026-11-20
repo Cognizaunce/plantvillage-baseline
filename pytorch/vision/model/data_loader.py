@@ -15,7 +15,12 @@ def make_transform(params, training=False):
     steps = [transforms.Resize((params.image_size, params.image_size))]
     if training and getattr(params, 'horizontal_flip', False):
         steps.append(transforms.RandomHorizontalFlip())
+    if training and getattr(params, 'vertical_flip', False):
+        steps.append(transforms.RandomVerticalFlip())
     steps.append(transforms.ToTensor())
+    if getattr(params, 'imagenet_normalize', False):
+        # Pretrained backbones expect ImageNet mean/std.
+        steps.append(transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
     return transforms.Compose(steps)
 
 

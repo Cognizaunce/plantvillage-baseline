@@ -1,5 +1,6 @@
 """Evaluate a selected checkpoint. Use validation for selection; reserve test for final evaluation."""
 import argparse
+import json
 from pathlib import Path
 import torch
 import utils
@@ -25,11 +26,16 @@ def main():
     batches = loaders[args.split]
     model = Net(params).to(params.device)
     model.load_state_dict(state['state_dict'])
-    metrics = utils.run_epoch(model, loss_fn, batches, params.device)
+    metrics = utils.run_epoch(model, loss_fn, batches, params.device, per_class=True)
     metrics.update(epoch=state['epoch'], split=args.split)
     destination = Path(args.model_dir) / f'metrics_{args.split}_{args.restore_file}.json'
     utils.save_dict_to_json(metrics, destination)
-    print(metrics)
+    print({k: metrics[k] for k in ['loss', 'accuracy', 'macro_f1', 'count', 'epoch', 'split']})
+    classes_file = Path(args.data_dir) / 'classes.json'
+    names = (json.loads(classes_file.read_text(encoding="utf-8"))["classes"]
+             if classes_file.exists() else {})
+    for i, (f1, recall) in enumerate(zip(metrics['per_class_f1'], metrics['per_class_recall'])):
+        print(f'  {i} {str(names.get(str(i), "")):45s} F1={f1:.3f} recall={recall:.3f}')
 
 
 if __name__ == '__main__':

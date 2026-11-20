@@ -2,9 +2,28 @@
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision import models
 
 
-class Net(nn.Module):
+def Net(params):
+    """Pick the model from params.arch ("scratch" keeps the original small CNN)."""
+    arch = getattr(params, 'arch', 'scratch')
+    if arch == 'scratch':
+        return ScratchNet(params)
+    # ImageNet-pretrained backbone, new last layer for our classes.
+    weights = 'DEFAULT' if getattr(params, 'pretrained', True) else None
+    if arch == 'mobilenet_v3_large':
+        model = models.mobilenet_v3_large(weights=weights)
+    elif arch == 'efficientnet_b0':
+        model = models.efficientnet_b0(weights=weights)
+    else:
+        raise ValueError('arch must be scratch, mobilenet_v3_large or efficientnet_b0')
+    model.classifier[-2].p = params.dropout_rate
+    model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, params.num_classes)
+    return model
+
+
+class ScratchNet(nn.Module):
     def __init__(self, params):
         super().__init__()
         c = params.num_channels

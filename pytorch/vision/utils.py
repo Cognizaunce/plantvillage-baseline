@@ -151,7 +151,7 @@ def append_history(model_dir, row):
         writer.writerow(row)
 
 
-def run_epoch(model, loss_fn, batches, device, optimizer=None):
+def run_epoch(model, loss_fn, batches, device, optimizer=None, per_class=False):
     """Aggregate over every image/valid token, including the last partial batch.
 
     This example reports accuracy and mean loss. Replace/add metrics for your task.
@@ -159,6 +159,7 @@ def run_epoch(model, loss_fn, batches, device, optimizer=None):
     """
     model.train(optimizer is not None)
     total_loss, correct, count = 0.0, 0, 0
+    confusion = None  # rows = true class, columns = predicted class
     with torch.set_grad_enabled(optimizer is not None):
         for inputs, labels in batches:
             inputs, labels = inputs.to(device), labels.to(device)
@@ -179,6 +180,21 @@ def run_epoch(model, loss_fn, batches, device, optimizer=None):
             correct += int(((predicted == flat_labels) & mask).sum().item())
             total_loss += float(loss.item()) * n
             count += n
+            k = outputs.shape[-1]
+            pairs = flat_labels[mask] * k + predicted[mask]
+            batch_confusion = torch.bincount(pairs, minlength=k * k).reshape(k, k).cpu()
+            confusion = batch_confusion if confusion is None else confusion + batch_confusion
     if not count:
         raise ValueError('Empty split or no valid labels.')
-    return {'loss': total_loss / count, 'accuracy': correct / count, 'count': count}
+    # Macro-F1 averages F1 over classes, so small classes count as much as big ones.
+    tp = confusion.diag().double()
+    precision = tp / confusion.sum(0).clamp(min=1)
+    recall = tp / confusion.sum(1).clamp(min=1)
+    f1 = 2 * precision * recall / (precision + recall).clamp(min=1e-12)
+    present = confusion.sum(1) > 0  # only classes that appear in this split
+    result = {'loss': total_loss / count, 'accuracy': correct / count,
+              'macro_f1': float(f1[present].mean()), 'count': count}
+    if per_class:
+        result.update(per_class_f1=f1.tolist(), per_class_recall=recall.tolist(),
+                      confusion_matrix=confusion.tolist())
+    return result
