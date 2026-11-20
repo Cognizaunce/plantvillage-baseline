@@ -124,3 +124,23 @@ python evaluate.py --data_dir data/tomato_plantvillage --model_dir experiments/p
 `evaluate.py` prints accuracy, macro-F1 and per-class F1/recall, and saves the
 confusion matrix in `metrics_<split>_<restore_file>.json`. Use `--split test`
 only for the final numbers.
+
+## FieldPlant: lab-to-field test and fine-tune
+
+Score the PlantVillage model on FieldPlant photos (no training). `--tag` keeps
+the PlantVillage metrics files from being overwritten:
+
+```
+python evaluate.py --data_dir data/tomato_fieldplant --model_dir experiments/plantvillage_mobilenetv3 --split test --tag fieldplant
+```
+
+Fine-tune that model on FieldPlant, starting from its best checkpoint:
+
+```
+python train.py --data_dir data/tomato_fieldplant --model_dir experiments/fieldplant_finetune_mobilenetv3 --init_from experiments/plantvillage_mobilenetv3/best.pth.tar
+python evaluate.py --data_dir data/tomato_fieldplant --model_dir experiments/fieldplant_finetune_mobilenetv3 --split test
+```
+
+FieldPlant only has 4 of the 10 classes, so the other 6 print F1=0 with no
+images; macro-F1 averages only over classes present in the split.
+

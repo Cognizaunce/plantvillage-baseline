@@ -15,6 +15,7 @@ def main():
     parser.add_argument('--restore_file', default='best', choices=['best', 'last'])
     parser.add_argument('--split', default='test', choices=['val', 'test'])
     parser.add_argument('--device', default='auto')
+    parser.add_argument('--tag', default='', help='Added to the metrics file name, e.g. fieldplant')
     args = parser.parse_args()
     checkpoint = Path(args.model_dir) / (args.restore_file + '.pth.tar')
     state = torch.load(checkpoint, map_location='cpu', weights_only=True)
@@ -28,7 +29,8 @@ def main():
     model.load_state_dict(state['state_dict'])
     metrics = utils.run_epoch(model, loss_fn, batches, params.device, per_class=True)
     metrics.update(epoch=state['epoch'], split=args.split)
-    destination = Path(args.model_dir) / f'metrics_{args.split}_{args.restore_file}.json'
+    destination = Path(args.model_dir) / (f'metrics_{args.split}_{args.restore_file}'
+                                          + (f'_{args.tag}' if args.tag else '') + '.json')
     utils.save_dict_to_json(metrics, destination)
     print({k: metrics[k] for k in ['loss', 'accuracy', 'macro_f1', 'count', 'epoch', 'split']})
     classes_file = Path(args.data_dir) / 'classes.json'

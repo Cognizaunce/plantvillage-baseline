@@ -1,0 +1,19 @@
+{
+  "arch": "mobilenet_v3_large",
+  "pretrained": true,
+  "imagenet_normalize": true,
+  "learning_rate": 0.0001,
+  "batch_size": 16,
+  "num_epochs": 10,
+  "optimizer": "adamw",
+  "weight_decay": 0.0001,
+  "seed": 4110,
+  "device": "auto",
+  "dropout_rate": 0.2,
+  "num_workers": 2,
+  "num_classes": 10,
+  "image_size": 224,
+  "horizontal_flip": true,
+  "vertical_flip": true,
+  "select_metric": "macro_f1"
+}

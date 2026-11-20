@@ -14,6 +14,8 @@ def main():
     parser.add_argument('--model_dir', default='experiments/base_model')
     parser.add_argument('--device', default=None, help='auto, cpu, cuda or mps; overrides params.json')
     parser.add_argument('--overwrite', action='store_true', help='Explicitly restart an existing run')
+    parser.add_argument('--init_from', default=None,
+                        help='Start from the weights of a saved checkpoint, e.g. a PlantVillage best.pth.tar')
     args = parser.parse_args()
     params = utils.Params(Path(args.model_dir) / 'params.json')
     if params.num_epochs < 1 or params.batch_size < 1:
@@ -25,6 +27,10 @@ def main():
     val_batches = lambda: iter(loaders['val'])
     utils.prepare_run(args.model_dir, params, args.data_dir, args.overwrite)
     model = Net(params).to(params.device)
+    if args.init_from:  # fine-tune: same architecture and classes, new optimizer
+        state = torch.load(args.init_from, map_location=params.device, weights_only=True)
+        model.load_state_dict(state['state_dict'])
+        logging.info('Initialized weights from %s', args.init_from)
     optimizer = utils.make_optimizer(model, params)
     select_metric = getattr(params, 'select_metric', 'accuracy')
     best_accuracy = float('-inf')  # best value of select_metric
