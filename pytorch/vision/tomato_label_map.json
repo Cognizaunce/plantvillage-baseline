@@ -17,6 +17,9 @@
     "Tomato_Leaf_Curling": "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
     "Tomato_Mildiou": "Tomato___Late_blight",
     "Tomato_Brown_Spots": null,
-    "Tomato_bacterial_wilt": null
+    "Tomato_bacterial_wilt": null,
+    "Tomato blight leaf": "Tomato___Late_blight",
+    "Tomato leaf mosaic virus": "Tomato___Tomato_mosaic_virus",
+    "Tomato leaf yellow virus": "Tomato___Tomato_Yellow_Leaf_Curl_Virus"
   }
 }

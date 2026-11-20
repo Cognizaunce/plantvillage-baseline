@@ -57,7 +57,9 @@ def apply_label_map(source, tomato, label_map):
     mapping = {norm(k): v for k, v in label_map['fieldplant_to_plantvillage'].items()}
     unknown = sorted({i['class_name'] for i in tomato if norm(i['class_name']) not in mapping})
     if unknown:
-        raise ValueError(f'FieldPlant classes {unknown} are missing from tomato_label_map.json; '
+        found = dict(sorted(Counter(i['class_name'] for i in tomato).items()))
+        raise ValueError(f'FieldPlant classes {unknown} are missing from tomato_label_map.json '
+                         f'(all tomato classes found, with leaf counts: {found}); '
                          'map each to a PlantVillage class or null.')
     bad = sorted({v for v in mapping.values() if v is not None and v not in classes})
     if bad:
