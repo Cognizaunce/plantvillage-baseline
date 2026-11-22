@@ -14,6 +14,9 @@ import shutil
 import subprocess
 import sys
 
+os.environ.setdefault('PYTHONUNBUFFERED', '1')
+sys.stdout.reconfigure(line_buffering=True)
+
 PLANTVILLAGE_URL = 'https://github.com/spMohanty/PlantVillage-Dataset.git'
 FIELDPLANT_WORKSPACE, FIELDPLANT_PROJECT = 'plant-disease-detection', 'fieldplant'
 FIELDPLANT_PAGE = 'https://universe.roboflow.com/plant-disease-detection/fieldplant'
@@ -48,9 +51,14 @@ def download_plantvillage(raw_dir, tomato_only):
 
 def download_fieldplant(raw_dir, version):
     target = raw_dir/'FieldPlant'
-    if target.exists() and any(target.rglob('*.json')):
+    complete = all((target / split / '_annotations.coco.json').exists()
+                   for split in ('train', 'valid', 'test'))
+    if complete:
         print(f'FieldPlant already present at {target}; skipping.')
         return
+    if target.exists():
+        print(f'Incomplete FieldPlant download found at {target}; re-downloading.')
+        shutil.rmtree(target)
     key = os.environ.get('ROBOFLOW_API_KEY')
     manual = (f'Manual option: open {FIELDPLANT_PAGE}, choose "Download Dataset", '
               f'format "COCO" (no extra augmentation), and unzip it into {target} '
