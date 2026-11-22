@@ -1,0 +1,155 @@
+"""Generate report figures from saved experiment outputs.
+
+Run from pytorch/vision/:
+    python plot_results.py
+
+Outputs (saved to plots/):
+    fig1_learning_curve.png   -- train/val loss and val macro-F1 over epochs
+    fig2_per_class_f1.png     -- per-class F1 before vs after FieldPlant fine-tune
+    fig3_ood_gap.png          -- overall accuracy and macro-F1 before vs after
+"""
+import json
+from pathlib import Path
+import csv
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+import numpy as np
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+PLOTS_DIR = Path('plots')
+HISTORY_CSV = Path('experiments/fieldplant_finetune_mobilenetv3/history.csv')
+BEFORE_JSON = Path('experiments/plantvillage_mobilenetv3/metrics_test_best_fieldplant.json')
+AFTER_JSON  = Path('experiments/fieldplant_finetune_mobilenetv3/metrics_test_best.json')
+CLASSES_JSON = Path('data/tomato_fieldplant/classes.json')
+
+PLOTS_DIR.mkdir(exist_ok=True)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def load_json(path):
+    return json.loads(Path(path).read_text(encoding='utf-8'))
+
+def load_history(path):
+    rows = []
+    with open(path, newline='', encoding='utf-8') as f:
+        for row in csv.DictReader(f):
+            rows.append({k: float(v) for k, v in row.items()})
+    return rows
+
+def short_name(full):
+    """Shorten Tomato___Disease_name -> Disease name."""
+    name = full.replace('Tomato___', '').replace('_', ' ')
+    replacements = {
+        'Tomato Yellow Leaf Curl Virus': 'YL Curl Virus',
+        'Spider mites Two-spotted spider mite': 'Spider Mites',
+        'Tomato mosaic virus': 'Mosaic Virus',
+    }
+    return replacements.get(name, name)
+
+# ---------------------------------------------------------------------------
+# Figure 1 — Learning curve
+# ---------------------------------------------------------------------------
+print('Reading history.csv ...')
+history = load_history(HISTORY_CSV)
+epochs      = [r['epoch'] for r in history]
+train_loss  = [r['train_loss'] for r in history]
+val_loss    = [r['val_loss'] for r in history]
+val_f1      = [r['val_macro_f1'] for r in history]
+val_acc     = [r['val_accuracy'] for r in history]
+
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 6), sharex=True)
+
+ax1.plot(epochs, train_loss, 'o-', label='Train loss', color='steelblue')
+ax1.plot(epochs, val_loss,   's--', label='Val loss',   color='tomato')
+ax1.set_ylabel('Cross-entropy loss')
+ax1.legend(framealpha=0.7)
+ax1.yaxis.set_major_formatter(mticker.FormatStrFormatter('%.2f'))
+ax1.grid(True, linestyle=':', alpha=0.6)
+
+ax2.plot(epochs, val_acc, 'o-',  label='Val accuracy', color='steelblue')
+ax2.plot(epochs, val_f1,  's--', label='Val macro-F1', color='darkorange')
+ax2.set_ylabel('Score')
+ax2.set_xlabel('Epoch')
+ax2.set_ylim(0, 1.05)
+ax2.legend(framealpha=0.7)
+ax2.yaxis.set_major_formatter(mticker.FormatStrFormatter('%.2f'))
+ax2.grid(True, linestyle=':', alpha=0.6)
+
+fig.suptitle('FieldPlant fine-tune: MobileNetV3-Large', fontsize=11)
+fig.tight_layout()
+fig.savefig(PLOTS_DIR / 'fig1_learning_curve.png', dpi=150, bbox_inches='tight')
+plt.close(fig)
+print('Saved fig1_learning_curve.png')
+
+# ---------------------------------------------------------------------------
+# Figure 2 — Per-class F1 before vs after
+# ---------------------------------------------------------------------------
+print('Reading metrics JSON files ...')
+before = load_json(BEFORE_JSON)
+after  = load_json(AFTER_JSON)
+
+classes_data = load_json(CLASSES_JSON)
+class_names  = [short_name(classes_data['classes'][str(i)]) for i in range(10)]
+
+f1_before = before['per_class_f1']
+f1_after  = after['per_class_f1']
+
+x = np.arange(10)
+w = 0.38
+
+fig, ax = plt.subplots(figsize=(11, 4.5))
+ax.bar(x - w/2, f1_before, w, label='PlantVillage only (before)', color='steelblue', alpha=0.85)
+ax.bar(x + w/2, f1_after,  w, label='+ FieldPlant fine-tune',     color='darkorange', alpha=0.85)
+ax.set_xticks(x)
+ax.set_xticklabels(class_names, rotation=35, ha='right', fontsize=8)
+ax.set_ylabel('F1 score')
+ax.set_ylim(0, 1.05)
+ax.set_title('Per-class F1 on FieldPlant test set: before vs after fine-tuning', fontsize=11)
+ax.legend(framealpha=0.7)
+ax.grid(axis='y', linestyle=':', alpha=0.6)
+fig.tight_layout()
+fig.savefig(PLOTS_DIR / 'fig2_per_class_f1.png', dpi=150, bbox_inches='tight')
+plt.close(fig)
+print('Saved fig2_per_class_f1.png')
+
+# ---------------------------------------------------------------------------
+# Figure 3 — OOD gap summary
+# ---------------------------------------------------------------------------
+metrics = {
+    'Accuracy': (before['accuracy'], after['accuracy']),
+    'Macro-F1': (before['macro_f1'], after['macro_f1']),
+}
+
+fig, ax = plt.subplots(figsize=(5, 4))
+x = np.arange(len(metrics))
+w = 0.3
+labels = list(metrics.keys())
+vals_before = [metrics[k][0] for k in labels]
+vals_after  = [metrics[k][1] for k in labels]
+
+bars1 = ax.bar(x - w/2, vals_before, w, label='PlantVillage only', color='steelblue', alpha=0.85)
+bars2 = ax.bar(x + w/2, vals_after,  w, label='+ FieldPlant fine-tune', color='darkorange', alpha=0.85)
+
+for bar in bars1 + bars2:
+    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02,
+            f'{bar.get_height():.2f}', ha='center', va='bottom', fontsize=9)
+
+ax.set_xticks(x)
+ax.set_xticklabels(labels)
+ax.set_ylim(0, 1.15)
+ax.set_ylabel('Score')
+ax.set_title('Lab-to-field gap: FieldPlant test set', fontsize=11)
+ax.legend(framealpha=0.7)
+ax.grid(axis='y', linestyle=':', alpha=0.6)
+fig.tight_layout()
+fig.savefig(PLOTS_DIR / 'fig3_ood_gap.png', dpi=150, bbox_inches='tight')
+plt.close(fig)
+print('Saved fig3_ood_gap.png')
+
+print(f'\nAll figures saved to {PLOTS_DIR.resolve()}')
