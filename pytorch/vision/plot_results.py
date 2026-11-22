@@ -94,8 +94,23 @@ print('Reading metrics JSON files ...')
 before = load_json(BEFORE_JSON)
 after  = load_json(AFTER_JSON)
 
-classes_data = load_json(CLASSES_JSON)
-class_names  = [short_name(classes_data['classes'][str(i)]) for i in range(10)]
+CLASS_NAMES_FULL = [
+    'Tomato___Bacterial_spot',
+    'Tomato___Early_blight',
+    'Tomato___Late_blight',
+    'Tomato___Leaf_Mold',
+    'Tomato___Septoria_leaf_spot',
+    'Tomato___Spider_mites Two-spotted_spider_mite',
+    'Tomato___Target_Spot',
+    'Tomato___Tomato_Yellow_Leaf_Curl_Virus',
+    'Tomato___Tomato_mosaic_virus',
+    'Tomato___healthy',
+]
+classes_file = Path(CLASSES_JSON)
+if classes_file.exists():
+    class_names = [short_name(load_json(classes_file)['classes'][str(i)]) for i in range(10)]
+else:
+    class_names = [short_name(n) for n in CLASS_NAMES_FULL]
 
 f1_before = before['per_class_f1']
 f1_after  = after['per_class_f1']
