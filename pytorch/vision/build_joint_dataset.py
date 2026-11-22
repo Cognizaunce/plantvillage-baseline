@@ -30,12 +30,12 @@ def link_or_copy(src, dst, use_copy):
         dst.symlink_to(src.resolve())
 
 
-def build_split(split, out_dir, use_copy):
+def build_split(split, out_dir, use_copy, pv_dir, fp_dir):
     out_split = out_dir / f'{split}_signs'
     out_split.mkdir(parents=True, exist_ok=True)
 
-    pv_src = PV_DIR / f'{split}_signs'
-    fp_src = FP_DIR / f'{split}_signs'
+    pv_src = pv_dir / f'{split}_signs'
+    fp_src = fp_dir / f'{split}_signs'
 
     counts = {}
 
@@ -75,12 +75,11 @@ def main():
                         help='Delete and recreate the output directory.')
     args = parser.parse_args()
 
-    global PV_DIR, FP_DIR
-    PV_DIR = Path(args.pv_dir)
-    FP_DIR = Path(args.fp_dir)
+    pv_dir = Path(args.pv_dir)
+    fp_dir = Path(args.fp_dir)
     out_dir = Path(args.out_dir)
 
-    for d, name in [(PV_DIR, '--pv_dir'), (FP_DIR, '--fp_dir')]:
+    for d, name in [(pv_dir, '--pv_dir'), (fp_dir, '--fp_dir')]:
         if not d.exists():
             raise SystemExit(f'{name} not found: {d}')
 
@@ -98,10 +97,10 @@ def main():
 
     print(f'Building joint dataset -> {out_dir}')
     for split in SPLITS:
-        build_split(split, out_dir, use_copy)
+        build_split(split, out_dir, use_copy, pv_dir, fp_dir)
 
     # Copy classes.json from PlantVillage (same 10 classes)
-    classes_src = PV_DIR / 'classes.json'
+    classes_src = pv_dir / 'classes.json'
     if classes_src.exists():
         shutil.copy2(classes_src, out_dir / 'classes.json')
 
