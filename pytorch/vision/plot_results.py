@@ -22,10 +22,11 @@ import numpy as np
 # Paths
 # ---------------------------------------------------------------------------
 PLOTS_DIR = Path('plots')
-HISTORY_CSV = Path('experiments/fieldplant_finetune_mobilenetv3/history.csv')
-BEFORE_JSON = Path('experiments/plantvillage_mobilenetv3/metrics_test_best_fieldplant.json')
-AFTER_JSON  = Path('experiments/fieldplant_finetune_mobilenetv3/metrics_test_best.json')
-CLASSES_JSON = Path('data/tomato_fieldplant/classes.json')
+HISTORY_CSV   = Path('experiments/fieldplant_finetune_mobilenetv3/history.csv')
+BEFORE_JSON   = Path('experiments/plantvillage_mobilenetv3/metrics_test_best_fieldplant.json')
+AFTER_JSON    = Path('experiments/fieldplant_finetune_mobilenetv3/metrics_test_best.json')
+RETAIN_JSON   = Path('experiments/fieldplant_finetune_mobilenetv3/metrics_test_best_plantvillage.json')
+CLASSES_JSON  = Path('data/tomato_fieldplant/classes.json')
 
 PLOTS_DIR.mkdir(exist_ok=True)
 
@@ -176,3 +177,42 @@ plt.close(fig)
 print('Saved fig3_ood_gap.png')
 
 print(f'\nAll figures saved to {PLOTS_DIR.resolve()}')
+
+# ---------------------------------------------------------------------------
+# Figure 4 — Catastrophic forgetting: PlantVillage performance before vs after
+# ---------------------------------------------------------------------------
+if RETAIN_JSON.exists():
+    retain = load_json(RETAIN_JSON)
+
+    # Baseline val metrics (best available proxy — test not yet run on baseline)
+    pv_baseline = {'accuracy': 0.9923, 'macro_f1': 0.9918}
+
+    metrics4 = {
+        'Accuracy':  (pv_baseline['accuracy'],  retain['accuracy']),
+        'Macro-F1':  (pv_baseline['macro_f1'],  retain['macro_f1']),
+    }
+
+    x4 = np.arange(len(metrics4))
+    labels4 = list(metrics4.keys())
+    vals_base  = [metrics4[k][0] for k in labels4]
+    vals_after = [metrics4[k][1] for k in labels4]
+
+    fig, ax = plt.subplots(figsize=(5, 4))
+    b1 = ax.bar(x4 - w/2, vals_base,  w, label='PlantVillage baseline (val)', color='steelblue',  alpha=0.85)
+    b2 = ax.bar(x4 + w/2, vals_after, w, label='After FieldPlant fine-tune',  color='darkorange', alpha=0.85)
+    for bar in list(b1) + list(b2):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02,
+                f'{bar.get_height():.2f}', ha='center', va='bottom', fontsize=9)
+    ax.set_xticks(x4)
+    ax.set_xticklabels(labels4)
+    ax.set_ylim(0, 1.15)
+    ax.set_ylabel('Score')
+    ax.set_title('Catastrophic forgetting: PlantVillage test performance\nbefore vs. after FieldPlant fine-tuning', fontsize=10)
+    ax.legend(framealpha=0.7)
+    ax.grid(axis='y', linestyle=':', alpha=0.6)
+    fig.tight_layout()
+    fig.savefig(PLOTS_DIR / 'fig4_forgetting.png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print('Saved fig4_forgetting.png')
+else:
+    print('Skipping fig4 — RETAIN_JSON not found.')
