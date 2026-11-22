@@ -7,6 +7,8 @@ Outputs (saved to plots/):
     fig1_learning_curve.png   -- train/val loss and val macro-F1 over epochs
     fig2_per_class_f1.png     -- per-class F1 before vs after FieldPlant fine-tune
     fig3_ood_gap.png          -- overall accuracy and macro-F1 before vs after
+    fig4_forgetting.png       -- PlantVillage performance after naive fine-tune
+    fig5_joint_comparison.png -- baseline vs naive fine-tune vs joint, both test sets
 """
 import json
 from pathlib import Path
@@ -216,3 +218,63 @@ if RETAIN_JSON.exists():
     print('Saved fig4_forgetting.png')
 else:
     print('Skipping fig4 — RETAIN_JSON not found.')
+
+# ---------------------------------------------------------------------------
+# Figure 5 — Baseline vs naive fine-tune vs joint training, on both test sets
+# ---------------------------------------------------------------------------
+JOINT_DIR   = Path('experiments/joint_mobilenetv3')
+JOINT_PV    = JOINT_DIR / 'metrics_test_best_plantvillage.json'
+JOINT_FP    = JOINT_DIR / 'metrics_test_best_fieldplant.json'
+BASE_PV_CANDIDATES = [
+    Path('experiments/plantvillage_mobilenetv3/metrics_test_best_plantvillage.json'),
+    Path('experiments/plantvillage_mobilenetv3/metrics_test_best.json'),
+]
+
+if JOINT_PV.exists() and JOINT_FP.exists() and RETAIN_JSON.exists():
+    joint_pv = load_json(JOINT_PV)
+    joint_fp = load_json(JOINT_FP)
+    retain   = load_json(RETAIN_JSON)
+
+    base_pv_file = next((p for p in BASE_PV_CANDIDATES if p.exists()), None)
+    if base_pv_file:
+        base_pv = load_json(base_pv_file)
+        base_label = 'PlantVillage baseline'
+    else:
+        base_pv = {'accuracy': 0.9923, 'macro_f1': 0.9918}  # val fallback
+        base_label = 'PlantVillage baseline (PV = val)'
+
+    models = [base_label, 'Naive FieldPlant fine-tune', 'Joint training']
+    colors = ['steelblue', 'darkorange', 'seagreen']
+    panels = {
+        'PlantVillage test (lab)':  [base_pv, retain, joint_pv],
+        'FieldPlant test (field)':  [before, after, joint_fp],
+    }
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4.2), sharey=True)
+    metric_keys = [('accuracy', 'Accuracy'), ('macro_f1', 'Macro-F1')]
+    xm = np.arange(len(metric_keys))
+    wm = 0.26
+    for ax, (title, results) in zip(axes, panels.items()):
+        for j, (res, name, col) in enumerate(zip(results, models, colors)):
+            vals = [res[k] for k, _ in metric_keys]
+            bars = ax.bar(xm + (j - 1) * wm, vals, wm, label=name, color=col, alpha=0.88)
+            for bar in bars:
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02,
+                        f'{bar.get_height():.2f}', ha='center', va='bottom', fontsize=8)
+        ax.set_xticks(xm)
+        ax.set_xticklabels([lbl for _, lbl in metric_keys])
+        ax.set_ylim(0, 1.15)
+        ax.set_title(title, fontsize=10)
+        ax.grid(axis='y', linestyle=':', alpha=0.6)
+    axes[0].set_ylabel('Score')
+    handles, labels_ = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels_, loc='lower center', ncol=3, framealpha=0.7,
+               bbox_to_anchor=(0.5, -0.02))
+    fig.suptitle('Baseline vs. naive fine-tune vs. joint training', fontsize=11)
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    fig.savefig(PLOTS_DIR / 'fig5_joint_comparison.png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print('Saved fig5_joint_comparison.png')
+else:
+    print('Skipping fig5 — joint metrics not found (run evaluate.py with '
+          '--tag plantvillage and --tag fieldplant on experiments/joint_mobilenetv3).')
