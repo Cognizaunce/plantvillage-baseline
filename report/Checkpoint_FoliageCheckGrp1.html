@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ARTE4110U Deep Learning Checkpoint - Group 1 FoliageCheck</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;700&display=swap">
+<style>
+  /* Same look as the Google Docs export: Ubuntu 11pt, Letter page, 0.8in margins. */
+  @page { size: 8.5in 11in; margin: 0.8in; }
+  body { background: #ffffff; color: #000000; font-family: "Ubuntu", sans-serif; font-size: 11pt;
+         line-height: 1.1; max-width: 496.8pt; margin: 0 auto; padding: 57.6pt; }
+  p { margin: 0 0 5pt 0; orphans: 2; widows: 2; }
+  h2 { font-size: 17pt; font-weight: 400; margin: 0; padding: 10pt 0 3pt 0; line-height: 1.1; break-after: avoid; }
+  h3 { font-size: 13pt; font-weight: 700; margin: 0; padding: 6pt 0 2pt 0; line-height: 1.1; break-after: avoid; }
+  a { color: #1155cc; text-decoration: underline; }
+  table { border-collapse: collapse; border-spacing: 0; margin: 2pt 0 6pt 0; width: 100%; break-inside: avoid; }
+  td, th { border: 1pt solid #000000; padding: 4pt 5pt; vertical-align: top; text-align: left; font-weight: 400; }
+  thead td, thead th { font-weight: 700; }
+  caption { caption-side: top; text-align: left; font-size: 10pt; padding-bottom: 3pt; }
+  figure { margin: 4pt 0 6pt 0; text-align: center; break-inside: avoid; }
+  figure img { max-width: 100%; height: auto; }
+  figcaption { font-size: 10pt; padding-top: 2pt; }
+  ol { margin: 0 0 6pt 0; padding-left: 22pt; }
+  li { margin-bottom: 2pt; }
+  .note { font-size: 10pt; }
+  .title-page { text-align: center; font-size: 14pt; }
+  .title-page p { margin: 0; }
+  .title-gap { padding-top: 80pt; }
+  .underline { text-decoration: underline; }
+  .page-break { break-before: page; }
+  .refs p { margin-bottom: 5pt; }
+  @media print { body { padding: 0; max-width: none; } }
+</style>
+</head>
+<body>
+
+<!-- ============================ Title page ============================ -->
+<div class="title-page">
+  <div data-custom-style="TitleLine"><p><img src="images/ontario_tech_logo.png" alt="Ontario Tech University" width="624"></p></div>
+  <div class="title-gap" data-custom-style="TitleGap"><p><strong>ARTE4110U Deep Learning Checkpoint</strong></p></div>
+  <div class="title-gap" data-custom-style="TitleGap"><p>GitHub Repo Link: <a href="https://github.com/sufiyaarab/FoliageChecker">https://github.com/sufiyaarab/FoliageChecker</a></p></div>
+  <div data-custom-style="TitleLine"><p><a href="https://github.com/ARTE4110U-Fall2026/project-group-01">https://github.com/ARTE4110U-Fall2026/project-group-01</a></p></div>
+  <div class="title-gap" data-custom-style="TitleGap"><p><span class="underline">Group 1: [FoliageCheck]</span></p></div>
+  <div data-custom-style="TitleLine"><p>Sufiya Arab - 100876515</p></div>
+  <div data-custom-style="TitleLine"><p>Chimamaka Okechukwu - 100861474</p></div>
+  <div data-custom-style="TitleLine"><p>Julian Olano Medina - 100855732</p></div>
+</div>
+
+<!-- ============================ Report body (3 pages) ============================ -->
+<div class="page-break"></div>
+
+<h2 id="introduction">1. Introduction and problem</h2>
+
+<p>This project investigates automated, image-based diagnosis of tomato leaf diseases. Early detection of crop disease matters for global food security and for preventing yield loss for home gardeners [1]. The model takes a single RGB image of a tomato leaf and predicts one of ten classes (9 diseases or healthy) [2], with a confidence score. Models trained on clean lab images are known to lose accuracy on real-world field photos [2], [4], so we measure this lab-to-field gap and attempt to close it.</p>
+
+<p>The main challenges are: (1) domain shift between lab images and field photos with variable lighting and complex backgrounds [4]; (2) out-of-distribution (OOD) rejection of non-tomato crops, non-leaf plant parts and unrepresented diseases [3]; and (3) fine-grained visual similarity between pathologies such as early blight, late blight and target spot [2].</p>
+
+<p><strong>Related work.</strong> CNNs learn visual features directly from images [13], and Mohanty et al. [2] showed that CNNs fine-tuned on PlantVillage reach high accuracy across 38 crop-disease classes, but only on lab images. Moupojou et al. [5] built FieldPlant, annotated field images of corn, cassava and tomato; we use its tomato subset to close the gap and the other crops as OOD inputs. MobileNetV3 [14] is designed for mobile devices, which fits diagnosis from smartphone photos, so it is our backbone.</p>
+
+<h2 id="data">2. Data</h2>
+
+<h3 id="datasets">2.1 Final dataset</h3>
+
+<p><strong>PlantVillage</strong> [2]: 18,146 tomato leaf images in 10 classes (9 diseases and healthy), taken in lab conditions on plain backgrounds; 21 exact duplicates were removed before splitting.</p>
+
+<p><strong>FieldPlant</strong> [5]: a Roboflow COCO export of field photos of corn, cassava and tomato with leaf bounding boxes. Each tomato box is cropped to a single-leaf image and its label mapped onto the PlantVillage classes (Table A1). Only 4 of the 10 classes have a match, leaving 817 field leaves, so field results cover those 4 classes only.</p>
+
+<p><strong>OOD sets</strong> (never used for training): 2,800 non-tomato PlantVillage leaves from 13 other crops, and 1,236 FieldPlant leaves (834 corn, 402 cassava). <strong>Class imbalance:</strong> in PlantVillage, Yellow Leaf Curl Virus is 29.5% of training images and mosaic virus 2.1%; FieldPlant is more skewed (286 late blight training leaves vs 13 mosaic virus).</p>
+
+<h3 id="splits">2.2 Split sizes</h3>
+
+<p>Both datasets are split 70 / 15 / 15 (train / val / test), stratified by class, with random seed 4110. This gives 12,700 / 2,723 / 2,723 PlantVillage images and 569 / 115 / 133 FieldPlant leaves (per class in Table A2). FieldPlant is split by source photo, so leaves cropped from the same photo never appear in two splits.</p>
+
+<h3 id="preprocessing">2.3 Pre-processing</h3>
+
+<p>Every image is resized to 224 × 224, the native input size of MobileNetV3, and normalized with the ImageNet mean and standard deviation [6], as the pretrained weights require. The only training augmentations are random horizontal and vertical flips [7]. FieldPlant leaves are cropped from their bounding boxes (Appendix A). Changes from the proposal are listed in Appendix B.</p>
+
+<h2 id="approach">3. Approach</h2>
+
+<h3 id="baseline">3.1 Baseline</h3>
+
+<p>The baseline is MobileNetV3-Large [14] initialized from ImageNet weights [6], a standard transfer-learning setup [9]. Its 1000-class classifier is replaced by a dropout layer (p = 0.2) and a linear layer with 10 outputs, and it is trained on PlantVillage only. It replaces both models named in the proposal (Appendix B), so this report compares training strategies, not architectures.</p>
+
+<h3 id="method">3.2 Method</h3>
+
+<p>Both methods start from the baseline checkpoint and update all layers. <strong>Naive fine-tuning</strong> continues training on the 569 FieldPlant training leaves only. <strong>Joint training</strong> continues training on the PlantVillage and FieldPlant training sets merged into one (13,269 images), so the model keeps seeing all ten lab classes. Every model is evaluated on both test sets, to measure the lab-to-field gap and any forgetting.</p>
+
+<h3 id="training-setup">3.3 Loss and training setup</h3>
+
+<p>All runs minimise cross-entropy with AdamW [10] (full settings in Table B1). The baseline uses a learning rate of 3 × 10⁻⁴ for 8 epochs. The two later runs use 1 × 10⁻⁴, because large updates would destroy what the checkpoint already learned (naive: 10 epochs; joint: 15). The epoch with the best validation macro-F1 is kept, because the classes are imbalanced. Batch size and epochs differ between the naive and joint runs, so that comparison is not fully controlled.</p>
+
+<h2 id="results">4. Preliminary results</h2>
+
+<h3 id="test-results">4.1 Test results</h3>
+
+<table>
+  <caption><strong>Table 1.</strong> Test accuracy and macro-F1 on the PlantVillage (2,723 images) and FieldPlant (133 leaves) test sets.</caption>
+  <colgroup><col style="width:32%"><col style="width:17%"><col style="width:17%"><col style="width:17%"><col style="width:17%"></colgroup>
+  <thead>
+    <tr><th>Model</th><th>PlantVillage accuracy</th><th>PlantVillage macro-F1</th><th>FieldPlant accuracy</th><th>FieldPlant macro-F1</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>PlantVillage baseline</td><td>0.990</td><td>0.989</td><td>0.105</td><td>0.074</td></tr>
+    <tr><td>Naive fine-tune</td><td>0.661</td><td>0.542</td><td>0.842</td><td>0.833</td></tr>
+    <tr><td><strong>Joint training</strong></td><td><strong>0.998</strong></td><td><strong>0.998</strong></td><td><strong>0.895</strong></td><td><strong>0.866</strong></td></tr>
+  </tbody>
+</table>
+
+<figure>
+  <img src="../pytorch/vision/plots/fig5_joint_comparison.png" alt="Grouped bar chart of accuracy and macro-F1 for the three models on the PlantVillage and FieldPlant test sets" width="390">
+  <figcaption><strong>Figure 1.</strong> Baseline vs. naive fine-tune vs. joint training on the lab (left) and field (right) test sets.</figcaption>
+</figure>
+
+<h3 id="learning-curve">4.2 Learning curve</h3>
+
+<p>The baseline converges within a few epochs. Validation macro-F1 peaks at epoch 5 (0.992); afterwards validation loss rises while training loss keeps falling (mild overfitting), so the epoch-5 checkpoint is kept. The naive fine-tune peaks at epoch 6 of 10 (Figure C1), joint training at 12 of 15.</p>
+
+<figure>
+  <img src="images/baseline_learning_curve.png" alt="Training and validation loss, and validation accuracy and macro-F1, over 8 epochs for the PlantVillage baseline" width="330">
+  <figcaption><strong>Figure 2.</strong> Learning curve of the PlantVillage baseline. The dashed line marks the selected epoch.</figcaption>
+</figure>
+
+<h3 id="interpretation">4.3 Interpretation</h3>
+
+<p><strong>The lab-to-field gap is severe.</strong> The baseline scores 99.0% on the PlantVillage test set but only 10.5% on FieldPlant leaves (macro-F1 0.074), below chance (25%) for the 4 field classes. This confirms the domain-shift problem raised in [2], [4].</p>
+
+<p><strong>Naive fine-tuning recovers field accuracy, but forgets the lab classes.</strong> Fine-tuning on 569 field leaves lifts FieldPlant accuracy to 84.2% (macro-F1 0.833), and all four classes reach F1 ≥ 0.80 (Figure C2). However, PlantVillage accuracy falls from 99.0% to 66.1% and macro-F1 from 0.989 to 0.542. This is catastrophic forgetting [17]: training only on the small field set overwrites what was learned from 12,700 lab images.</p>
+
+<p><strong>Joint training removes the forgetting.</strong> Training on both datasets keeps PlantVillage at 99.8% accuracy, slightly above the baseline. It also beats the naive fine-tune on FieldPlant: 89.5% vs 84.2% accuracy and 0.866 vs 0.833 macro-F1, with gains in late blight (F1 0.848 → 0.908) and healthy (0.828 → 0.899) (Table C1). With 133 test leaves, the 5.3-point gain is 7 leaves, so it must be repeated across seeds before we call it significant. The main result is that one model now handles both lab and field photos.</p>
+
+<p><strong>Caveats.</strong> Mosaic virus has only 3 FieldPlant test leaves (2 correct), so its F1 is very uncertain, and the 6 classes without FieldPlant data cannot be evaluated in the field.</p>
+
+<h2 id="remaining-work">5. Remaining work, risks and timeline</h2>
+
+<p>The controlled experiment planned in the proposal, PlantVillage-only vs PlantVillage + FieldPlant, is complete (Section 4), and joint training was added to fix the forgetting it revealed. For the final report we will add OOD rejection using energy scores [12] vs maximum softmax probability [3], scored by AUROC on the OOD sets (the scoring script, ood_eval.py, is written; results are not yet reported). We will also measure calibration (Expected Calibration Error, temperature scaling), produce confusion matrices [15] and Grad-CAM maps [16] for field leaves, and repeat the naive and joint runs over at least 3 seeds for confidence intervals. Stretch goals are listed in Appendix B.</p>
+
+<p><strong>We have five main risks to manage:</strong> (1) FieldPlant covers only 4 of the 10 classes, which limits field results to those 4. (2) With only 569 field training leaves the model could overfit; best-val-macro-F1 checkpointing acts as early stopping, and joint training also reduces this risk. (3) The FieldPlant test split is small (133 leaves), so results are noisy; we will report confidence intervals across seeds. (4) Near-duplicate photos in PlantVillage might inflate our 99% score; exact duplicates are removed and a near-duplicate check is planned. (5) Compute is no longer the bottleneck (about 45 s per joint epoch); the main limit is the small amount of field data.</p>
+
+<table>
+  <caption><strong>Table 2.</strong> Timeline for the remaining work.</caption>
+  <colgroup><col style="width:17%"><col style="width:53%"><col style="width:30%"></colgroup>
+  <thead>
+    <tr><th>Week</th><th>Action items</th><th>Owner</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Nov 21 - Nov 27</td><td>OOD rejection, calibration, confusion matrices, Grad-CAM, multi-seed runs.</td><td>Julian Olano Medina / Chimamaka Okechukwu</td></tr>
+    <tr><td>Nov 28 - Dec 4</td><td>Final project report writing and code repository cleanup.</td><td>All members</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================ References ============================ -->
+<div class="page-break"></div>
+
+<h2 id="references">References</h2>
+
+<div class="refs">
+<p>[1] S. Savary, L. Willocquet, S. J. Pethybridge, P. Esker, N. McRoberts, and A. Nelson, "The global burden of pathogens and pests on major food crops," Nature Ecology &amp; Evolution, vol. 3, no. 3, pp. 430-439, 2019.</p>
+<p>[2] S. P. Mohanty, D. P. Hughes, and M. Salathé, "Using deep learning for image-based plant disease detection," Front. Plant Sci., vol. 7, p. 1419, 2016, doi: 10.3389/fpls.2016.01419. Dataset: <a href="https://github.com/spMohanty/PlantVillage-Dataset">https://github.com/spMohanty/PlantVillage-Dataset</a>. License: Creative Commons Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0).</p>
+<p>[3] D. Hendrycks and K. Gimpel, "A baseline for detecting misclassified and out-of-distribution examples in neural networks," in Proc. Int. Conf. Learn. Represent. (ICLR), 2017.</p>
+<p>[4] K. P. Ferentinos, "Deep learning models for plant disease detection and diagnosis," Comput. Electron. Agric., vol. 145, pp. 311-318, 2018.</p>
+<p>[5] E. Moupojou et al., "FieldPlant: A dataset of field plant images for plant disease detection and classification with deep learning," IEEE Access, vol. 11, pp. 35398-35410, 2023, doi: 10.1109/ACCESS.2023.3263042. Dataset license: Creative Commons Attribution 4.0 International (CC BY 4.0).</p>
+<p>[6] J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li, and L. Fei-Fei, "ImageNet: A large-scale hierarchical image database," in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR), 2009, pp. 248-255.</p>
+<p>[7] C. Shorten and T. M. Khoshgoftaar, "A survey on image data augmentation for deep learning," J. Big Data, vol. 6, no. 1, p. 60, 2019.</p>
+<p>[8] C. Szegedy et al., "Going deeper with convolutions," in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR), 2015, pp. 1-9.</p>
+<p>[9] S. J. Pan and Q. Yang, "A survey on transfer learning," IEEE Trans. Knowl. Data Eng., vol. 22, no. 10, pp. 1345-1359, 2010.</p>
+<p>[10] I. Loshchilov and F. Hutter, "Decoupled weight decay regularization," in Proc. Int. Conf. Learn. Represent. (ICLR), 2019.</p>
+<p>[11] A. Krizhevsky, I. Sutskever, and G. E. Hinton, "ImageNet classification with deep convolutional neural networks," in Proc. Adv. Neural Inf. Process. Syst. (NeurIPS), 2012, pp. 1097-1105.</p>
+<p>[12] W. Liu, X. Wang, J. Owens, and Y. Li, "Energy-based out-of-distribution detection," in Proc. Adv. Neural Inf. Process. Syst. (NeurIPS), vol. 33, 2020, pp. 21464-21475.</p>
+<p>[13] Y. LeCun, Y. Bengio, and G. Hinton, "Deep learning," Nature, vol. 521, no. 7553, pp. 436-444, 2015.</p>
+<p>[14] A. Howard et al., "Searching for MobileNetV3," in Proc. IEEE/CVF Int. Conf. Comput. Vis. (ICCV), 2019, pp. 1314-1324.</p>
+<p>[15] M. Sokolova and G. Lapalme, "A systematic analysis of performance measures for classification tasks," Inf. Process. Manage., vol. 45, no. 4, pp. 427-437, 2009.</p>
+<p>[16] R. R. Selvaraju, M. Cogswell, A. Das, R. Vedantam, D. Parikh, and D. Batra, "Grad-CAM: Visual explanations from deep networks via gradient-based localization," in Proc. IEEE Int. Conf. Comput. Vis. (ICCV), 2017, pp. 618-626.</p>
+<p>[17] J. Kirkpatrick et al., "Overcoming catastrophic forgetting in neural networks," Proc. Natl. Acad. Sci. USA, vol. 114, no. 13, pp. 3521-3526, 2017, doi: 10.1073/pnas.1611835114.</p>
+</div>
+
+<!-- ============================ Appendix A ============================ -->
+<div class="page-break"></div>
+
+<h2 id="appendix-a">Appendix A. Dataset details</h2>
+
+<h3 id="a1">A.1 FieldPlant class mapping</h3>
+
+<p>FieldPlant's tomato labels were mapped onto the PlantVillage classes so that a label index means the same disease in both datasets.</p>
+
+<table>
+  <caption><strong>Table A1.</strong> Mapping of FieldPlant tomato labels onto PlantVillage classes.</caption>
+  <colgroup><col style="width:55%"><col style="width:45%"></colgroup>
+  <thead>
+    <tr><th>FieldPlant class</th><th>Mapped to PlantVillage class</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Tomato_Mildiou / Tomato blight leaf</td><td>Late blight</td></tr>
+    <tr><td>Tomato_Leaf_Curling / Tomato leaf yellow virus</td><td>Yellow Leaf Curl Virus</td></tr>
+    <tr><td>Tomato_Mosaic / Tomato leaf mosaic virus</td><td>Mosaic virus</td></tr>
+    <tr><td>Tomato_healthy</td><td>Healthy</td></tr>
+    <tr><td>Tomato Brown Spots (1,620 boxes), bacterial wilt (2 boxes)</td><td>Dropped: no PlantVillage match</td></tr>
+  </tbody>
+</table>
+
+<p>Dropping Brown Spots, the largest FieldPlant tomato class, is a limitation of aligning the two datasets. Mapping "Leaf Curling" to Yellow Leaf Curl Virus is also an approximation. Each bounding box is expanded to a square with a 10% margin and cropped from the photo before resizing, so leaves are not squashed. Boxes smaller than 32 px on a side are discarded (1 box removed).</p>
+
+<h3 id="a2">A.2 Per-class split sizes</h3>
+
+<table>
+  <caption><strong>Table A2.</strong> Images per class in each split (train / val / test).</caption>
+  <colgroup><col style="width:34%"><col style="width:33%"><col style="width:33%"></colgroup>
+  <thead>
+    <tr><th>Class</th><th>PlantVillage (train / val / test)</th><th>FieldPlant (train / val / test)</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>0 Bacterial spot</td><td>1,489 / 319 / 319</td><td>none</td></tr>
+    <tr><td>1 Early blight</td><td>700 / 150 / 150</td><td>none</td></tr>
+    <tr><td>2 Late blight</td><td>1,331 / 285 / 285</td><td>286 / 55 / 63</td></tr>
+    <tr><td>3 Leaf mold</td><td>666 / 143 / 143</td><td>none</td></tr>
+    <tr><td>4 Septoria leaf spot</td><td>1,239 / 266 / 266</td><td>none</td></tr>
+    <tr><td>5 Spider mites</td><td>1,174 / 251 / 251</td><td>none</td></tr>
+    <tr><td>6 Target spot</td><td>982 / 211 / 211</td><td>none</td></tr>
+    <tr><td>7 Yellow Leaf Curl Virus</td><td>3,749 / 804 / 804</td><td>77 / 16 / 22</td></tr>
+    <tr><td>8 Mosaic virus</td><td>261 / 56 / 56</td><td>13 / 3 / 3</td></tr>
+    <tr><td>9 Healthy</td><td>1,109 / 238 / 238</td><td>193 / 41 / 45</td></tr>
+    <tr><td><strong>Total</strong></td><td><strong>12,700 / 2,723 / 2,723</strong></td><td><strong>569 / 115 / 133</strong></td></tr>
+  </tbody>
+</table>
+
+<p>Roboflow's augmented copies of a photo are collapsed into one before splitting. Every file in every split is recorded with a SHA-256 hash in split_manifest.json, so the splits can be reproduced.</p>
+
+<h3 id="a3">A.3 OOD sets and duplicates</h3>
+
+<p>The 2,800 non-tomato PlantVillage leaves are up to 100 images per class from apple, blueberry, cherry, corn, grape, orange, peach, pepper, potato, raspberry, soybean, squash and strawberry. The 21 exact duplicates removed from PlantVillage were found by hashing every image in the full colour set, and include identical images that appeared under two different class labels.</p>
+
+<!-- ============================ Appendix B ============================ -->
+<h2 id="appendix-b">Appendix B. Training configuration</h2>
+
+<table>
+  <caption><strong>Table B1.</strong> Training settings for the three runs.</caption>
+  <colgroup><col style="width:25%"><col style="width:25%"><col style="width:25%"><col style="width:25%"></colgroup>
+  <thead>
+    <tr><th>Setting</th><th>PlantVillage baseline</th><th>Naive fine-tune</th><th>Joint training</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Initialized from</td><td>ImageNet</td><td>PlantVillage checkpoint</td><td>PlantVillage checkpoint</td></tr>
+    <tr><td>Training data</td><td>PlantVillage (12,700)</td><td>FieldPlant (569)</td><td>Both (13,269)</td></tr>
+    <tr><td>Loss</td><td>Cross-entropy</td><td>Cross-entropy</td><td>Cross-entropy</td></tr>
+    <tr><td>Optimizer</td><td>AdamW [10]</td><td>AdamW</td><td>AdamW</td></tr>
+    <tr><td>Learning rate</td><td>3 × 10⁻⁴</td><td>1 × 10⁻⁴</td><td>1 × 10⁻⁴</td></tr>
+    <tr><td>Weight decay</td><td>1 × 10⁻⁴</td><td>1 × 10⁻⁴</td><td>1 × 10⁻⁴</td></tr>
+    <tr><td>Batch size</td><td>32</td><td>16</td><td>32</td></tr>
+    <tr><td>Epochs</td><td>8</td><td>10</td><td>15</td></tr>
+    <tr><td>Image size</td><td>224 × 224</td><td>224 × 224</td><td>224 × 224</td></tr>
+    <tr><td>Best epoch chosen by</td><td>Val macro-F1</td><td>Val macro-F1</td><td>Val macro-F1</td></tr>
+    <tr><td>Seed</td><td>4110</td><td>4110</td><td>4110</td></tr>
+    <tr><td>Hardware</td><td>NVIDIA RTX 3060</td><td>NVIDIA RTX 3060</td><td>NVIDIA RTX 3060</td></tr>
+  </tbody>
+</table>
+
+<p>The FieldPlant-only run uses batch size 16 to get more updates from its 569 images.</p>
+
+<p><strong>Stretch goals.</strong> If time allows, we will also run an EfficientNet-B0 comparison and test averaging predictions over several photos of the same plant.</p>
+
+<p><strong>Changes from the proposal.</strong></p>
+
+<ol>
+  <li><strong>Split:</strong> 70 / 15 / 15 instead of 80 / 10 / 10. The larger validation and test sets give steadier estimates for the rare classes.</li>
+  <li><strong>Image size:</strong> 224 × 224 instead of 256 × 256, to match MobileNetV3's native input.</li>
+  <li><strong>Augmentation:</strong> rotation and colour jitter were not used in this checkpoint.</li>
+  <li><strong>Background segmentation:</strong> not implemented. It remains a possible experiment for the final report but is lower priority than OOD rejection.</li>
+  <li><strong>Models:</strong> MobileNetV3-Large replaces both the AlexNet-from-scratch baseline [11] and the GoogLeNet method [8]. It has a similar parameter count to GoogLeNet (~5.4M vs ~5M) but is designed for mobile inference, which fits our smartphone deployment goal.</li>
+  <li><strong>Optimizer:</strong> AdamW [10] instead of SGD with momentum (lr 0.005, wd 0.0005). AdamW converges reliably with pretrained backbones and little tuning.</li>
+</ol>
+
+<!-- ============================ Appendix C ============================ -->
+<div class="page-break"></div>
+
+<h2 id="appendix-c">Appendix C. Additional results</h2>
+
+<table>
+  <caption><strong>Table C1.</strong> Per-class F1 and recall on the FieldPlant test set.</caption>
+  <colgroup><col style="width:32%"><col style="width:17%"><col style="width:17%"><col style="width:17%"><col style="width:17%"></colgroup>
+  <thead>
+    <tr><th>Class (FieldPlant test n)</th><th>Naive F1</th><th>Naive recall</th><th>Joint F1</th><th>Joint recall</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Late blight (63)</td><td>0.848</td><td>0.889</td><td>0.908</td><td>0.937</td></tr>
+    <tr><td>Yellow Leaf Curl Virus (22)</td><td>0.857</td><td>0.818</td><td>0.857</td><td>0.818</td></tr>
+    <tr><td>Mosaic virus (3)</td><td>0.800</td><td>0.667</td><td>0.800</td><td>0.667</td></tr>
+    <tr><td>Healthy (45)</td><td>0.828</td><td>0.800</td><td>0.899</td><td>0.889</td></tr>
+  </tbody>
+</table>
+
+<div class="note" data-custom-style="Note"><p>FieldPlant macro-F1 is averaged over the 4 classes present in FieldPlant. Validation scores of the selected checkpoints: baseline 0.992 accuracy and 0.992 macro-F1 (2,723 PlantVillage images); joint 0.993 and 0.993 (2,838 images from both datasets). Source: the metrics_test_best*.json files in experiments/plantvillage_mobilenetv3, experiments/fieldplant_finetune_mobilenetv3 and experiments/joint_mobilenetv3.</p></div>
+
+<figure>
+  <img src="../pytorch/vision/plots/fig1_learning_curve.png" alt="Training and validation loss, and validation accuracy and macro-F1, over 10 epochs for the naive FieldPlant fine-tune" width="430">
+  <figcaption><strong>Figure C1.</strong> Learning curve of the naive FieldPlant fine-tune.</figcaption>
+</figure>
+
+<figure>
+  <img src="../pytorch/vision/plots/fig2_per_class_f1.png" alt="Bar chart of per-class F1 of the naive fine-tune on the four FieldPlant classes" width="430">
+  <figcaption><strong>Figure C2.</strong> Per-class F1 of the naive fine-tune on the FieldPlant test set.</figcaption>
+</figure>
+
+<figure>
+  <img src="../pytorch/vision/plots/fig3_ood_gap.png" alt="Bar chart of FieldPlant test accuracy and macro-F1 before and after naive fine-tuning" width="360">
+  <figcaption><strong>Figure C3.</strong> Lab-to-field gap: FieldPlant test scores of the baseline and the naive fine-tune.</figcaption>
+</figure>
+
+<figure>
+  <img src="../pytorch/vision/plots/fig4_forgetting.png" alt="Bar chart of PlantVillage test accuracy and macro-F1 before and after naive fine-tuning" width="360">
+  <figcaption><strong>Figure C4.</strong> Catastrophic forgetting: PlantVillage test scores before and after naive fine-tuning.</figcaption>
+</figure>
+
+<h2 id="appendix-d">Appendix D. Contributions and AI disclosure</h2>
+
+<table>
+  <caption><strong>Table D1.</strong> Contributions of each group member.</caption>
+  <colgroup><col style="width:28%"><col style="width:72%"></colgroup>
+  <thead>
+    <tr><th>Member</th><th>Contribution</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Sufiya Arab</td><td>Dataset downloading, tomato subset filtering, stratified splits, PlantVillage baseline training and evaluation.</td></tr>
+    <tr><td>Chimamaka Okechukwu</td><td>Report drafting, section editing, Git collaboration guidance.</td></tr>
+    <tr><td>Julian Olano Medina</td><td>Pre-processing pipeline, MobileNetV3 / EfficientNet-B0 integration, FieldPlant fine-tuning and joint training on the RTX 3060, label mapping, plot scripts, repository setup.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>AI disclosure.</strong> Claude (Anthropic) was used for Git guidance, drafting plot scripts, feedback on report drafts, and restructuring and formatting this report.</p>
+
+</body>
+</html>
