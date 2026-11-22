@@ -124,15 +124,17 @@ names_present = [class_names[i] for i in present]
 x = np.arange(len(present))
 w = 0.38
 
-fig, ax = plt.subplots(figsize=(7, 4.5))
-ax.bar(x - w/2, f1_before, w, label='PlantVillage only (before)', color='steelblue', alpha=0.85)
-ax.bar(x + w/2, f1_after,  w, label='+ FieldPlant fine-tune',     color='darkorange', alpha=0.85)
+fig, ax = plt.subplots(figsize=(6, 4))
+bars = ax.bar(x, f1_after, w * 1.6, color='darkorange', alpha=0.88)
+for bar in bars:
+    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02,
+            f'{bar.get_height():.2f}', ha='center', va='bottom', fontsize=10)
 ax.set_xticks(x)
-ax.set_xticklabels(names_present, rotation=25, ha='right', fontsize=9)
+ax.set_xticklabels(names_present, rotation=20, ha='right', fontsize=10)
 ax.set_ylabel('F1 score')
-ax.set_ylim(0, 1.05)
-ax.set_title('Per-class F1 on FieldPlant test set: before vs after fine-tuning', fontsize=11)
-ax.legend(framealpha=0.7)
+ax.set_ylim(0, 1.1)
+ax.set_title('Fine-tuned MobileNetV3: per-class F1 on FieldPlant test set\n'
+             '(6 PlantVillage classes absent from FieldPlant — not shown)', fontsize=10)
 ax.grid(axis='y', linestyle=':', alpha=0.6)
 fig.tight_layout()
 fig.savefig(PLOTS_DIR / 'fig2_per_class_f1.png', dpi=150, bbox_inches='tight')
