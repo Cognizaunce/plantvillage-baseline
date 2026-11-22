@@ -186,8 +186,13 @@ print(f'\nAll figures saved to {PLOTS_DIR.resolve()}')
 if RETAIN_JSON.exists():
     retain = load_json(RETAIN_JSON)
 
-    # Baseline val metrics (best available proxy — test not yet run on baseline)
-    pv_baseline = {'accuracy': 0.9923, 'macro_f1': 0.9918}
+    base_test = Path('experiments/plantvillage_mobilenetv3/metrics_test_best_plantvillage.json')
+    if base_test.exists():
+        pv_baseline = load_json(base_test)
+        base4_label = 'PlantVillage baseline'
+    else:  # val fallback if baseline test eval hasn't been run
+        pv_baseline = {'accuracy': 0.9923, 'macro_f1': 0.9918}
+        base4_label = 'PlantVillage baseline (val)'
 
     metrics4 = {
         'Accuracy':  (pv_baseline['accuracy'],  retain['accuracy']),
@@ -200,7 +205,7 @@ if RETAIN_JSON.exists():
     vals_after = [metrics4[k][1] for k in labels4]
 
     fig, ax = plt.subplots(figsize=(5, 4))
-    b1 = ax.bar(x4 - w/2, vals_base,  w, label='PlantVillage baseline (val)', color='steelblue',  alpha=0.85)
+    b1 = ax.bar(x4 - w/2, vals_base,  w, label=base4_label, color='steelblue',  alpha=0.85)
     b2 = ax.bar(x4 + w/2, vals_after, w, label='After FieldPlant fine-tune',  color='darkorange', alpha=0.85)
     for bar in list(b1) + list(b2):
         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02,
