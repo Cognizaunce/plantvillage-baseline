@@ -112,17 +112,23 @@ if classes_file.exists():
 else:
     class_names = [short_name(n) for n in CLASS_NAMES_FULL]
 
-f1_before = before['per_class_f1']
-f1_after  = after['per_class_f1']
+f1_before_all = before['per_class_f1']
+f1_after_all  = after['per_class_f1']
 
-x = np.arange(10)
+# Only show classes present in FieldPlant (at least one model has non-zero F1)
+present = [i for i in range(10) if f1_before_all[i] > 0 or f1_after_all[i] > 0]
+f1_before = [f1_before_all[i] for i in present]
+f1_after  = [f1_after_all[i]  for i in present]
+names_present = [class_names[i] for i in present]
+
+x = np.arange(len(present))
 w = 0.38
 
-fig, ax = plt.subplots(figsize=(11, 4.5))
+fig, ax = plt.subplots(figsize=(7, 4.5))
 ax.bar(x - w/2, f1_before, w, label='PlantVillage only (before)', color='steelblue', alpha=0.85)
 ax.bar(x + w/2, f1_after,  w, label='+ FieldPlant fine-tune',     color='darkorange', alpha=0.85)
 ax.set_xticks(x)
-ax.set_xticklabels(class_names, rotation=35, ha='right', fontsize=8)
+ax.set_xticklabels(names_present, rotation=25, ha='right', fontsize=9)
 ax.set_ylabel('F1 score')
 ax.set_ylim(0, 1.05)
 ax.set_title('Per-class F1 on FieldPlant test set: before vs after fine-tuning', fontsize=11)
