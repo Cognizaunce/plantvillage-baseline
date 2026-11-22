@@ -2,7 +2,8 @@
 
 Creates data/tomato_joint/{train,val,test}_signs/ by symlinking (Linux/Mac)
 or copying (Windows / --copy flag) files from both source datasets.
-FieldPlant files are prefixed with 'fp_' to avoid filename collisions.
+FieldPlant files are renamed {label}_fp_{id} to avoid filename collisions
+(label stays first because the data loader parses it from the filename).
 
 Then train with:
     python train.py --data_dir data/tomato_joint \\
@@ -51,10 +52,12 @@ def build_split(split, out_dir, use_copy, pv_dir, fp_dir):
     for f in sorted(fp_src.iterdir()):
         if f.suffix.lower() not in {'.jpg', '.jpeg', '.png'}:
             continue
-        dst = out_split / f'fp_{f.name}'
+        label_str, rest = f.name.split('_', 1)
+        label = int(label_str)
+        # Keep label first so the loader's '{label}_...' parsing still works
+        dst = out_split / f'{label}_fp_{rest}'
         if not dst.exists():
             link_or_copy(f, dst, use_copy)
-        label = int(f.name.split('_', 1)[0])
         counts[label] = counts.get(label, 0) + 1
 
     total = sum(counts.values())
